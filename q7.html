@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Choropleth</title>
+
+            <style>
+
+        .counties {
+        fill: none;
+      }
+
+      .states {
+        fill: none;
+        stroke: #fff;
+        stroke-linejoin: round;
+      }
+
+      .title {
+        font-family: sans-serif;
+        font-size: 25px;
+        font-weight: normal;
+      }
+
+      .axis  {
+        font-family: sans-serif;
+        font-size: 12px;
+        font-weight:normal;
+        fill:black;
+      }
+
+      .d3-tip {
+        font-family: sans-serif;
+        line-height: 1;
+        font-weight: lighter;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        border-radius: 2px;
+        }
+
+      .d3-tip.n:after {
+        margin: -1px 0 0 0;
+        top: 100%;
+        left: 0;
+      }
+}
+
+</style>
+    </head>
+    <body>
+
+    <p id="chart">
+
+        <script type="text/javascript" src="../lib/d3.v3.min.js"></script>
+        <script type="text/javascript" src="../lib/topojson.v1.min.js"></script>
+        <script type="text/javascript" src="../lib/d3.tip.v0.6.3.js"></script>
+        <script type="text/javascript" src="../lib/d3-queue.v3.min.js"></script>
+        <script>
+
+
+    svgwidth=800;
+    svgheight=800;
+    padding=80;
+    colorcellwidth=30;
+    canvas = createCanvas(svgwidth+3*padding, svgheight+2*padding).attr("transform","translate(0,100)")
+
+    var map = d3.map();
+    var path = d3.geo.path();
+
+    d3.queue()
+    .defer(d3.json, "median_earnings.json")
+    .defer(d3.json, "us.json")
+    .defer(d3.csv, "median_ages.csv")
+    .await(ready);
+
+    function ready(error, earnings, us, ages) {
+
+      ages_converted=[];
+
+      ages.forEach(function(d){
+        ages_converted.push({"id":+d.id,"name":d.name,"median_age":+d.median_age})
+      })
+
+    var earningsById = {};
+
+    earnings.forEach(function(d) { earningsById[d.id] = +d.median_earnings; });
+
+    var minearnings= d3.min(earnings,function(d){return d.median_earnings});
+    var maxearnings= d3.max(earnings,function(d){return d.median_earnings});
+
+    var tip = d3.tip()
+        .attr('class', 'd3-tip')
+        .offset([-padding/8, 0])
+        .html(function(d) {
+            var str="";
+            counties_top5.forEach(function(index){
+              if(d.id==index.key){
+                for(i=0;i<index.values.length;i++){
+                  str=str+index.values[i][1]+" (Age: " + index.values[i][0]+")" + "<br/>"
+                }
+              }
+        })
+        return str;
+
+  })
+    canvas.call(tip);
+
+
+
+    var colors = ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c","#00441b"];
+    var colorscale = d3.scale.quantile().domain([minearnings,maxearnings]).range(colors)
+
+      canvas.append("g")
+      .attr("class","states")
+      .selectAll("path")
+      .data(topojson.feature(us, us.objects.states).features)
+      .enter()
+      .append("path")
+      .attr("d",path)
+      .attr("fill", function(d,i){ return colorscale(earningsById[d.id])})
+      .on('mouseover',tip.show)
+      .on('mouseout',tip.hide);
+
+//Labels
+
+      canvas.append("text")
+      .attr("x",svgwidth/2+padding)
+      .attr("y",padding/4)
+      .attr("class","title")
+      .attr("text-anchor","middle")
+      .text("Median Earnings by State");
+
+      gradient = (maxearnings-minearnings)/9
+
+      colorscalesvg= canvas.selectAll("colors")
+      .data(colors)
+      .enter()
+      .append("rect");
+
+      colorscalesvg.attr("x", svgwidth + 1.25*padding)
+      .attr("y",function(d,i){return padding + colorcellwidth*i})
+      .attr("height",colorcellwidth)
+      .attr("width",colorcellwidth)
+      .attr("fill", function(d){return d});
+
+      colorscalevalue = canvas.selectAll("colorscaletext")
+      .data(colors)
+      .enter()
+      .append("text")
+      .attr("class","axis")
+      .attr("x",svgwidth + 1.75*padding)
+      .attr("y", function(d,i){return padding + colorcellwidth*i})
+      .attr("text-anchor","start")
+      .text(function(d,i){return "$"+Math.round(i*gradient,0)});
+
+
+      counties_top5 = d3.nest()
+          .key(function(d){ return d.id; })
+          .rollup(function(x){return x.map(function(d){return [d.median_age, d.name, d.id];}).sort(d3.ascending).slice(0, 5);})
+          .entries(ages_converted);
+
+      console.log(counties_top5[31])
+
+    };
+
+        function createCanvas(x,y){
+            return d3.select("body")
+                    .append("svg")
+                    .attr("width",x)
+                    .attr("height", y);
+        };
+
+
+
+                </script>
+
+
+
+    </body>
+</html>
