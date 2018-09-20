@@ -113,7 +113,7 @@ var path = svg.append("svg:g").selectAll("path")
     .style("stroke", function(d){if(d.value<3) {return "green";} else if(d.value>=3 & d.value<4) {return "red";} else {return "blue";}})
     ;
 
-var nodescale=d3.scale.sqrt().domain([d3.min(force.nodes(), function(d){return d.weight;}),d3.max(force.nodes(), function(d){return d.weight;})]).range([2,10])
+var nodescale=d3.scale.sqrt().domain([d3.min(force.nodes(), function(d){return d.weight;}),d3.max(force.nodes(), function(d){return d.weight;})]).range([2,15])
 
 // define the nodes
 var node = svg.selectAll(".node")
