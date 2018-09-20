@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Sankey</title>
+
+            <style>
+
+        .node rect {
+          cursor: move;
+          fill-opacity: .9;
+          shape-rendering: crispEdges;
+        }
+
+        .node text {
+          pointer-events: none;
+        }
+
+        .link {
+          fill: none;
+          stroke: #081e2e;
+          stroke-opacity: .2;
+        }
+
+        .link:hover {
+          stroke-opacity: .5;
+        }
+        .d3-tip {
+          line-height: 1;
+          font-weight: normal;
+          padding: 12px;
+          background: rgba(0, 0, 0, 0.8);
+          color: #fff;
+          border-radius: 2px;
+        }
+
+        .d3-tip.n:after {
+          margin: -1px 0 0 0;
+          top: 100%;
+          left: 0;
+        }
+
+</style>
+    </head>
+    <body>
+
+    <p id="chart">
+
+        <script type="text/javascript" src="../lib/d3.v3.min.js"></script>
+        <script type="text/javascript" src="../lib/sankey.js"></script>
+        <script type="text/javascript" src="../lib/d3.tip.v0.6.3.js"></script>
+        <script>
+
+
+        var margin = {top: 10, right: 10, bottom: 10, left: 10},
+        width = 1200 - margin.left - margin.right,
+        height = 1200 - margin.top - margin.bottom;
+
+        var units="Widgets";
+
+        svg=d3.select("#chart")
+            .append("svg")
+            .attr("width",width + margin.left + margin.right)
+            .attr("height",height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform","translate("+ margin.left + "," + margin.top +")");
+
+        var formatNumber = d3.format(",.0f"),
+        format = function(d) { return formatNumber(d) + " "+ units ; },
+        color = d3.scale.category20();
+
+        var sankey = d3.sankey()
+            .nodeWidth(36)
+            .nodePadding(10)
+            .size([width, height]);
+
+        var path = sankey.link();
+
+        var tip = d3.tip()
+        .attr('class', 'd3-tip')
+        .offset([-10, 0])
+        .html(function(d) {
+        return "<span style='color:white'>" + d.source.name +" - "+d.target.name +" : "+d.value+ " points "+ "</span>";
+  })
+        svg.call(tip);
+
+//Load data from file1
+
+        csvdata={"nodes":[], "links":[]};
+        d3.csv("races.csv", function(dataset){
+            dataset.forEach(function(p){
+                csvdata.nodes.push({"name":p.race})
+                csvdata.nodes.push({"name":p.driver})
+                csvdata.links.push({"source":p.race,
+                                    "target":p.driver,
+                                    "value":+p.points})
+
+
+
+    });
+
+//Load data from file2
+
+        d3.csv("teams.csv", function(dataset){
+            dataset.forEach(function(p){
+                csvdata.nodes.push({"name":p.driver})
+                csvdata.nodes.push({"name":p.team})
+                csvdata.links.push({"source":p.driver,
+                                    "target":p.team,
+                                    "value":+p.points})
+    });
+
+
+    csvdata.nodes = d3.keys(d3.nest()
+       .key(function (d) { return d.name; })
+       .map(csvdata.nodes));
+
+
+
+    csvdata.links.forEach(function(d,i){
+        csvdata.links[i].source=csvdata.nodes.indexOf(csvdata.links[i].source);
+        csvdata.links[i].target=csvdata.nodes.indexOf(csvdata.links[i].target);
+    });
+
+
+    csvdata.nodes.forEach(function(d,i){
+        csvdata.nodes[i]={"name":d}
+    });
+
+
+    sankey
+    .nodes(csvdata.nodes)
+    .links(csvdata.links)
+    .layout(32);
+
+//Add links and the mouseover properties
+
+    var link = svg.append("g")
+        .selectAll(".link")
+        .data(csvdata.links)
+        .enter()
+        .append("path")
+        .attr("class", "link")
+        .attr("d", path)
+        .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+        .sort(function(a, b) { return b.dy - a.dy; })
+        .on('mouseover', tip.show)
+        .on('mouseout', tip.hide);
+
+//Add nodes, along with x,y drag properties
+
+     var node = svg.append("g")
+        .selectAll(".node")
+        .data(csvdata.nodes)
+        .enter()
+        .append("g")
+        .attr("class", "node")
+        .attr("transform", function(d) {
+             return "translate(" + d.x + "," + d.y + ")";
+                })
+        .call(d3.behavior.drag()
+        .origin(function(d) {
+             return d;
+                })
+        .on("dragstart", function() {
+            this.parentNode.appendChild(this);
+                })
+        .on("drag", dragmove));
+
+
+  node.append("rect")
+      .attr("height", function(d) {
+            return d.dy;
+                })
+      .attr("width", sankey.nodeWidth())
+      .style("fill", function(d) {
+            return d.color = color(d.name.replace(/ .*/, ""));
+                })
+      .style("stroke", function(d) {
+            return d3.rgb(d.color).darker(2);
+                })
+;
+
+  node.append("text")
+      .attr("x", -6)
+      .attr("y", function(d) {
+            return d.dy / 2;
+                })
+      .attr("dy", ".35em")
+      .attr("text-anchor", "end")
+      .attr("transform", null)
+      .text(function(d) {
+            return d.name;
+                })
+      .filter(function(d) {
+            return d.x < width / 2;
+                })
+      .attr("x", 6 + sankey.nodeWidth())
+      .attr("text-anchor", "start")
+
+          function dragmove(d) {
+            d3.select(this).attr("transform",
+                "translate(" + (d.x = Math.max(0, Math.min(width - d.dx, d3.event.x)))
+             + "," + (
+                d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))
+            ) + ")");
+
+            sankey.relayout();
+            link.attr("d", path);
+  }
+
+
+
+
+});
+
+});
+
+
+//Create SVG function
+        function createCanvas(x,y){
+            return d3.select("body")
+                    .append("svg")
+                    .attr("width",x)
+                    .attr("height", y);
+        };
+
+
+
+                </script>
+
+
+
+    </body>
+</html>
